@@ -16,9 +16,9 @@ import (
 )
 
 func TestErrorsSetLogger(t *testing.T) {
-	previous := defaultLogger
+	previous := errLog
 	defer func() {
-		defaultLogger = previous
+		errLog = previous
 	}()
 
 	// set up logger
@@ -28,7 +28,7 @@ func TestErrorsSetLogger(t *testing.T) {
 
 	// print
 	SetLogger(logger)
-	defaultLogger.Print("test")
+	errLog.Print("test")
 
 	// check result
 	if actual := buffer.String(); actual != expected {

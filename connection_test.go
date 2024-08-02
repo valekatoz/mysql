@@ -117,8 +117,8 @@ func TestInterpolateParamsUint64(t *testing.T) {
 
 func TestCheckNamedValue(t *testing.T) {
 	value := driver.NamedValue{Value: ^uint64(0)}
-	mc := &mysqlConn{}
-	err := mc.CheckNamedValue(&value)
+	x := &mysqlConn{}
+	err := x.CheckNamedValue(&value)
 
 	if err != nil {
 		t.Fatal("uint64 high-bit not convertible", err)
@@ -159,15 +159,13 @@ func TestCleanCancel(t *testing.T) {
 
 func TestPingMarkBadConnection(t *testing.T) {
 	nc := badConnection{err: errors.New("boom")}
-	mc := &mysqlConn{
+	ms := &mysqlConn{
 		netConn:          nc,
 		buf:              newBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
-		closech:          make(chan struct{}),
-		cfg:              NewConfig(),
 	}
 
-	err := mc.Ping(context.Background())
+	err := ms.Ping(context.Background())
 
 	if err != driver.ErrBadConn {
 		t.Errorf("expected driver.ErrBadConn, got  %#v", err)
@@ -176,18 +174,17 @@ func TestPingMarkBadConnection(t *testing.T) {
 
 func TestPingErrInvalidConn(t *testing.T) {
 	nc := badConnection{err: errors.New("failed to write"), n: 10}
-	mc := &mysqlConn{
+	ms := &mysqlConn{
 		netConn:          nc,
 		buf:              newBuffer(nc),
 		maxAllowedPacket: defaultMaxAllowedPacket,
 		closech:          make(chan struct{}),
-		cfg:              NewConfig(),
 	}
 
-	err := mc.Ping(context.Background())
+	err := ms.Ping(context.Background())
 
-	if err != nc.err {
-		t.Errorf("expected %#v, got  %#v", nc.err, err)
+	if err != ErrInvalidConn {
+		t.Errorf("expected ErrInvalidConn, got  %#v", err)
 	}
 }
 

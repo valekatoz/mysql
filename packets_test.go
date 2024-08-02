@@ -96,11 +96,9 @@ var _ net.Conn = new(mockConn)
 
 func newRWMockConn(sequence uint8) (*mockConn, *mysqlConn) {
 	conn := new(mockConn)
-	connector := newConnector(NewConfig())
 	mc := &mysqlConn{
 		buf:              newBuffer(conn),
-		cfg:              connector.cfg,
-		connector:        connector,
+		cfg:              NewConfig(),
 		netConn:          conn,
 		closech:          make(chan struct{}),
 		maxAllowedPacket: defaultMaxAllowedPacket,
@@ -130,34 +128,30 @@ func TestReadPacketSingleByte(t *testing.T) {
 }
 
 func TestReadPacketWrongSequenceID(t *testing.T) {
-	for _, testCase := range []struct {
-		ClientSequenceID byte
-		ServerSequenceID byte
-		ExpectedErr      error
-	}{
-		{
-			ClientSequenceID: 1,
-			ServerSequenceID: 0,
-			ExpectedErr:      ErrPktSync,
-		},
-		{
-			ClientSequenceID: 0,
-			ServerSequenceID: 0x42,
-			ExpectedErr:      ErrPktSyncMul,
-		},
-	} {
-		conn, mc := newRWMockConn(testCase.ClientSequenceID)
+	conn := new(mockConn)
+	mc := &mysqlConn{
+		buf: newBuffer(conn),
+	}
 
-		conn.data = []byte{0x01, 0x00, 0x00, testCase.ServerSequenceID, 0xff}
-		_, err := mc.readPacket()
-		if err != testCase.ExpectedErr {
-			t.Errorf("expected %v, got %v", testCase.ExpectedErr, err)
-		}
+	// too low sequence id
+	conn.data = []byte{0x01, 0x00, 0x00, 0x00, 0xff}
+	conn.maxReads = 1
+	mc.sequence = 1
+	_, err := mc.readPacket()
+	if err != ErrPktSync {
+		t.Errorf("expected ErrPktSync, got %v", err)
+	}
 
-		// connection should not be returned to the pool in this state
-		if mc.IsValid() {
-			t.Errorf("expected IsValid() to be false")
-		}
+	// reset
+	conn.reads = 0
+	mc.sequence = 0
+	mc.buf = newBuffer(conn)
+
+	// too high sequence id
+	conn.data = []byte{0x01, 0x00, 0x00, 0x42, 0xff}
+	_, err = mc.readPacket()
+	if err != ErrPktSyncMul {
+		t.Errorf("expected ErrPktSyncMul, got %v", err)
 	}
 }
 
@@ -185,7 +179,7 @@ func TestReadPacketSplit(t *testing.T) {
 	data[4] = 0x11
 	data[maxPacketSize+3] = 0x22
 
-	// 2nd packet has payload length 0 and sequence id 1
+	// 2nd packet has payload length 0 and squence id 1
 	// 00 00 00 01
 	data[pkt2ofs+3] = 0x01
 
@@ -217,7 +211,7 @@ func TestReadPacketSplit(t *testing.T) {
 	data[pkt2ofs+4] = 0x33
 	data[pkt2ofs+maxPacketSize+3] = 0x44
 
-	// 3rd packet has payload length 0 and sequence id 2
+	// 3rd packet has payload length 0 and squence id 2
 	// 00 00 00 02
 	data[pkt3ofs+3] = 0x02
 
@@ -271,7 +265,6 @@ func TestReadPacketFail(t *testing.T) {
 	mc := &mysqlConn{
 		buf:     newBuffer(conn),
 		closech: make(chan struct{}),
-		cfg:     NewConfig(),
 	}
 
 	// illegal empty (stand-alone) packet

@@ -17,7 +17,7 @@ import (
 )
 
 func TestStaleConnectionChecks(t *testing.T) {
-	runTestsParallel(t, dsn, func(dbt *DBTest, _ string) {
+	runTests(t, dsn, func(dbt *DBTest) {
 		dbt.mustExec("SET @@SESSION.wait_timeout = 2")
 
 		if err := dbt.db.Ping(); err != nil {
